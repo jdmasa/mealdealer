@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go version *)",
+      "Bash(curl --version)",
+      "Bash(find /Users/jdmasa -maxdepth 4 -iname '*men*uny*' -o -iname 'MENÚ*2026*' 2>/dev/null | head; echo \"---in project---\"; ls -la /Users/jdmasa/Documents/qwen/*.pdf 2>/dev/null; echo \"---Downloads/Desktop---\"; ls -t ~/Downloads ~/Desktop 2>/dev/null | grep -i -E 'men|uny' | head)",
+      "Read(//Users/jdmasa/**)",
+      "Read(//Users/jdmasa/Downloads/**)",
+      "Bash(awk -F= '/^OPENAI_API_KEY=/{v=$2; gsub\\(/[\" ]/,\"\",v\\); print \"OPENAI_API_KEY set:\", \\(length\\(v\\)>0?\"yes \\(\"length\\(v\\)\" chars\\)\":\"no\"\\)} *)",
+      "Bash(curl -sS -m 6 http://192.168.1.17:11434/v1/models)",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

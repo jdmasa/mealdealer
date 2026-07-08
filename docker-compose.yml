@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    image: menudealer
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      # Ensure the DB lands on the persistent volume regardless of .env.
+      DB_PATH: /data/mealplanner.db
+    volumes:
+      - ./menudata:/data
+    restart: unless-stopped
+

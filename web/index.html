@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ca">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Planificador de menús</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1 id="appTitle">Planificador de menús</h1>
+        <p id="tagline" class="tagline"></p>
+      </div>
+      <div class="lang">
+        <label id="langLabel" for="langSelect"></label>
+        <select id="langSelect">
+          <option value="ca">Català</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="suggest" id="navSuggest"></button>
+      <button class="tab" data-tab="add" id="navAdd"></button>
+      <button class="tab" data-tab="browse" id="navBrowse"></button>
+    </nav>
+
+    <main>
+      <div id="banner" class="banner hidden"></div>
+
+      <!-- SUGGEST -->
+      <section id="tab-suggest" class="panel">
+        <h2 id="suggestHeading"></h2>
+        <p class="hint" id="suggestHint"></p>
+
+        <div class="field">
+          <label id="lbl-targetDate" for="suggestDate"></label>
+          <input type="date" id="suggestDate" />
+        </div>
+
+        <div class="field">
+          <label id="lbl-constraints" for="constraints"></label>
+          <textarea id="constraints" rows="2"></textarea>
+        </div>
+
+        <div class="field">
+          <label id="lbl-lunchUpload" for="lunchFile"></label>
+          <div class="upload-row">
+            <input type="file" id="lunchFile" accept=".pdf,.txt,.md,application/pdf,text/plain" />
+            <button id="btnExtractLunches" class="secondary"></button>
+          </div>
+          <p class="hint" id="lunchUploadHint"></p>
+          <p class="hint" id="lunchLoadedInfo"></p>
+        </div>
+
+        <div class="field">
+          <label id="lbl-lunches"></label>
+          <div id="lunchInputs" class="lunch-grid"></div>
+        </div>
+
+        <div class="actions">
+          <button id="btnProposeDinners" class="primary"></button>
+          <button id="btnGenerateWeek" class="secondary"></button>
+        </div>
+
+        <div id="suggestResult"></div>
+      </section>
+
+      <!-- ADD -->
+      <section id="tab-add" class="panel hidden">
+        <h2 id="addHeading"></h2>
+
+        <div class="field">
+          <label id="lbl-weekStart" for="addDate"></label>
+          <input type="date" id="addDate" />
+        </div>
+
+        <div class="field">
+          <label id="lbl-upload" for="fileInput"></label>
+          <input type="file" id="fileInput" accept=".pdf,.txt,.md,application/pdf,text/plain" />
+          <p class="hint" id="extractHint"></p>
+        </div>
+
+        <div class="actions">
+          <button id="btnExtract" class="primary"></button>
+          <button id="btnStartBlank" class="secondary"></button>
+        </div>
+
+        <div id="addResult"></div>
+      </section>
+
+      <!-- BROWSE -->
+      <section id="tab-browse" class="panel hidden">
+        <h2 id="browseHeading"></h2>
+        <div id="menuList"></div>
+      </section>
+    </main>
+
+    <script src="i18n.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
