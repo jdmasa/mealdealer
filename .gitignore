@@ -4,3 +4,5 @@
 *.db-wal
 .env
 /server
+menudata
+.claude/settings.local.json

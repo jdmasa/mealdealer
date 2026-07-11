@@ -119,7 +119,7 @@ func (s *Server) handleExtractLunches(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	log.Printf("extract-lunches: OK for %q — %d dated lunches", filename, len(lunches))
+	log.Printf("extract-lunches: OK for %q — %d lunches (day-numbers)", filename, len(lunches))
 	writeJSON(w, http.StatusOK, map[string]any{"lunches": lunches})
 }
 

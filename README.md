@@ -29,11 +29,12 @@ lunches entered, it generates a full week instead.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill it in:
+Copy the profile template matching where you run it, then fill it in:
 
 ```bash
-cp .env.example .env
-# edit .env: set OPENAI_BASE_URL, OPENAI_API_KEY, models…
+cp .env.local.example .env        # all-local (Ollama)
+# or
+cp .env.huggingface.example .env  # all-Hugging Face (set your hf_ token)
 ```
 
 | Variable | Purpose | Default |
@@ -44,11 +45,31 @@ cp .env.example .env
 | `EXTRACT_MODEL` | model for parsing uploaded menus/PDFs (blank = reuse `CHAT_MODEL`) | — |
 | `VISION_MODEL` | image model (blank = reuse `CHAT_MODEL`) | — |
 | `EMBEDDING_MODEL` | embedding model | `text-embedding-3-small` |
+| `EMBEDDING_PROVIDER` | `openai` (OpenAI `/embeddings`) or `hf` (HF feature-extraction) | `openai` |
+| `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` | separate endpoint for embeddings (blank = reuse main; for `hf`, blank = HF router) | — |
+| `EMBED_QUERY_PREFIX` / `EMBED_DOCUMENT_PREFIX` | Nomic task prefixes (set manually if your serving layer doesn't add them; trailing space kept) | — |
 | `DB_PATH` | SQLite file path | `data/mealplanner.db` |
 | `PORT` | HTTP port | `8080` |
 | `OUTPUT_LANG` | default language: `ca` or `es` | `ca` |
 | `SEASON_WEIGHT` | weight of seasonal proximity in ranking | `0.15` |
 | `REQUEST_TIMEOUT` | HTTP read/write timeout in seconds (raise for slow local models) | `300` |
+
+## Choosing a backend
+
+Two ready templates are included — copy one to `.env`:
+
+```bash
+cp .env.local.example .env        # everything on local Ollama (offline, no token)
+# or
+cp .env.huggingface.example .env  # chat + embeddings on the Hugging Face router
+```
+
+Each profile is self-contained. The chat base URL **must include `/v1`** (e.g.
+`https://router.huggingface.co/v1`) — a bare host returns HTML and fails. HF's router has no
+OpenAI `/v1/embeddings`, so the HF profile sets `EMBEDDING_PROVIDER=hf` to use HF's
+feature-extraction API instead; the local profile uses `EMBEDDING_PROVIDER=openai` against
+Ollama. The startup log runs chat + embeddings probes and tells you exactly what's wrong if a
+call fails.
 
 ## Run locally
 

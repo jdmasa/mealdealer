@@ -97,41 +97,50 @@ func (e *Extractor) structureText(ctx context.Context, text string) (menu.Week, 
 	return parseExtracted(raw)
 }
 
-// DatedLunch is a single lunch tied to a calendar date, extracted from a weekly
-// or monthly lunch menu.
-type DatedLunch struct {
-	Date  string `json:"date"` // ISO YYYY-MM-DD (best effort; may be empty)
+// LunchItem is one lunch tagged with the day-of-month NUMBER printed for it in
+// the menu (1-31). The app maps these numbers onto whichever week the user picks
+// — so the model never has to find a week or compute a date.
+type LunchItem struct {
+	Day   int    `json:"day"`
 	Dish  string `json:"dish"`
 	Notes string `json:"notes,omitempty"`
 }
 
-const lunchSchemaHint = `Return ONLY a JSON object of this exact shape:
-{"lunches":[{"date":"YYYY-MM-DD","dish":"","notes":""}, ...]}
+// lunchFormatRules is the shared instruction: read every workday lunch in the
+// whole document, each tagged with its printed day-of-month number. This is the
+// simplest possible task for the model (no week logic, no date arithmetic),
+// which makes it robust across models — the app does week selection in code.
+const lunchFormatRules = `Extract EVERY lunch printed anywhere in this menu (all weeks), reading top to bottom.
 
-STRICT RULES:
+Return ONLY a JSON object of this exact shape:
+{"lunches":[{"day":<number>,"dish":"","notes":""}, ...]}
+
+RULES:
+- "day" is the day-of-MONTH NUMBER printed next to that day (e.g. 8, 17, 23) —
+  NOT a position/index and NOT a date. Read it from the document.
+- The menu is a TABLE: a row of day-of-month numbers (e.g. "1 2 3 4 5") is
+  followed by that week's lunches in the SAME left-to-right order. Pair the 1st
+  lunch with the 1st number, the 2nd lunch with the 2nd number, and so on; the
+  next row of numbers begins the next week. Count carefully — do not shift.
 - Extract ONLY lunches. In Catalan/Spanish canteen menus the lunch is the
-  "dinar"/"comida" block. COMPLETELY IGNORE the "sopar"/"cena" (dinner) block —
-  never copy any dinner text into the output.
-- Return EXACTLY ONE entry per dated day the document covers. Never merge two
-  days into one entry. Never invent days that are not printed.
-- Infer each full ISO date (YYYY-MM-DD) from the day number and the month+year
-  named in the document (e.g. days 1-5 under "juny 2026" → 2026-06-01 … 2026-06-05).
-- In "dish", list that day's lunch courses in printed order (starter, main,
-  dessert) separated by " · ", e.g. "Amanida · Estofat de gall dindi · Fruita".
-- Transcribe in the ORIGINAL language; do NOT translate.
-- Omit only days that genuinely have no lunch printed.`
+  "dinar"/"comida" block. COMPLETELY IGNORE the "sopar"/"cena" (dinner) block.
+- One entry per printed day; never merge days; never invent a day that is not
+  printed. Include every week/day you can find (a month usually has ~20).
+- In "dish", list that day's courses in printed order (starter, main, dessert)
+  separated by " · ". Transcribe in the ORIGINAL language; do NOT translate.`
 
-const lunchSystem = "You extract ONLY lunches (never dinners) from weekly or monthly meal menus into structured JSON. " + lunchSchemaHint
+const lunchSystem = "You extract ONLY lunches (never dinners) from meal menus into structured JSON. " + lunchFormatRules
 
-// ExtractLunches pulls the lunches (ignoring dinners) from an uploaded weekly or
-// monthly menu, each tied to its calendar date.
-func (e *Extractor) ExtractLunches(ctx context.Context, filename, contentType string, data []byte) ([]DatedLunch, error) {
+// ExtractLunches reads every workday lunch from an uploaded menu, each tagged
+// with its printed day-of-month number. Week selection happens later, in code.
+func (e *Extractor) ExtractLunches(ctx context.Context, filename, contentType string, data []byte) ([]LunchItem, error) {
 	kind := detectKind(filename, contentType, data)
+	const instruction = "Menu content:\n\n"
 	var raw string
 	var err error
 	switch kind {
 	case "image":
-		raw, err = e.llm.VisionJSON(ctx, lunchSystem, "Extract only the lunches from this menu image.", data, contentType)
+		raw, err = e.llm.VisionJSON(ctx, lunchSystem, "Extract every lunch from this menu image.", data, contentType)
 	case "pdf":
 		text, perr := pdfText(data)
 		if perr != nil {
@@ -140,12 +149,12 @@ func (e *Extractor) ExtractLunches(ctx context.Context, filename, contentType st
 		if strings.TrimSpace(text) == "" {
 			return nil, fmt.Errorf("no text found in PDF (it may be a scan — upload a text PDF or a .txt file)")
 		}
-		raw, err = e.llm.ExtractJSON(ctx, lunchSystem, "Extract only the lunches from this menu text:\n\n"+text)
+		raw, err = e.llm.ExtractJSON(ctx, lunchSystem, instruction+text)
 	case "text":
 		if strings.TrimSpace(string(data)) == "" {
 			return nil, fmt.Errorf("the uploaded text file is empty")
 		}
-		raw, err = e.llm.ExtractJSON(ctx, lunchSystem, "Extract only the lunches from this menu text:\n\n"+string(data))
+		raw, err = e.llm.ExtractJSON(ctx, lunchSystem, instruction+string(data))
 	default:
 		return nil, fmt.Errorf("unsupported file type %q (upload a text PDF, .txt, or .md file)", contentType)
 	}
@@ -155,14 +164,27 @@ func (e *Extractor) ExtractLunches(ctx context.Context, filename, contentType st
 	return parseLunches(raw)
 }
 
-func parseLunches(raw string) ([]DatedLunch, error) {
+func parseLunches(raw string) ([]LunchItem, error) {
+	// Accept "day" as either a JSON number or a numeric string.
 	var parsed struct {
-		Lunches []DatedLunch `json:"lunches"`
+		Lunches []struct {
+			Day   json.Number `json:"day"`
+			Dish  string      `json:"dish"`
+			Notes string      `json:"notes"`
+		} `json:"lunches"`
 	}
 	if err := json.Unmarshal([]byte(jsonx.Clean(raw)), &parsed); err != nil {
 		return nil, fmt.Errorf("parse lunches: %w", err)
 	}
-	return parsed.Lunches, nil
+	out := make([]LunchItem, 0, len(parsed.Lunches))
+	for _, l := range parsed.Lunches {
+		day, _ := l.Day.Int64()
+		if day < 1 || day > 31 || strings.TrimSpace(l.Dish) == "" {
+			continue
+		}
+		out = append(out, LunchItem{Day: int(day), Dish: l.Dish, Notes: l.Notes})
+	}
+	return out, nil
 }
 
 func detectKind(filename, contentType string, data []byte) string {

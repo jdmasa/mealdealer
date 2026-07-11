@@ -140,8 +140,15 @@
     return notes ? (x.dish || "").trim() + " · " + notes : (x.dish || "").trim();
   }
 
+  // Day-of-month number for an ISO date "YYYY-MM-DD" (1-31).
+  function dayOfMonth(iso) {
+    return parseInt(iso.slice(8, 10), 10);
+  }
+
   // ---- SUGGEST tab ------------------------------------------------------
-  const suggestState = { lunches: ["", "", "", "", "", "", ""], week: null, datedLunches: [] };
+  // lunchItems: [{day:<1-31>, dish, notes}] read from an uploaded menu; mapped
+  // onto the selected week by matching each day's day-of-month number.
+  const suggestState = { lunches: ["", "", "", "", "", "", ""], week: null, lunchItems: [] };
 
   function renderLunchInputs() {
     const wrap = $("lunchInputs");
@@ -172,9 +179,12 @@
       const fd = new FormData();
       fd.append("file", f);
       const res = await api("POST", "/api/lunches/extract", fd, true);
-      suggestState.datedLunches = (res && res.lunches) || [];
-      $("lunchLoadedInfo").textContent = tf("lunchLoaded", { n: suggestState.datedLunches.length });
-      fillLunchesFromDate();
+      suggestState.lunchItems = (res && res.lunches) || [];
+      if (!$("suggestDate").value) {
+        $("lunchLoadedInfo").textContent = tf("lunchLoaded", { n: suggestState.lunchItems.length });
+      } else {
+        fillLunchesFromDate();
+      }
     } catch (e) {
       showError(e);
     } finally {
@@ -183,46 +193,35 @@
     }
   }
 
-  // Maps the uploaded dated lunches onto the 7 day-slots of the target week.
+  // Maps the uploaded lunches (tagged by day-of-month number) onto the 7 slots of
+  // the selected week: slot i gets the item whose day == day-of-month of week+i.
   function fillLunchesFromDate() {
-    const dl = suggestState.datedLunches;
-    if (!dl || dl.length === 0) return;
-
-    let start = $("suggestDate").value;
-    if (!start) {
-      // Default to the earliest covered date (canteen weeks start on Monday).
-      const dates = dl.map((x) => x.date).filter(Boolean).sort();
-      if (dates.length) {
-        start = dates[0];
-        $("suggestDate").value = start;
-      }
-    }
+    const items = suggestState.lunchItems;
+    if (!items || items.length === 0) return;
+    const start = $("suggestDate").value;
     if (!start) return;
 
-    const byDate = {};
-    for (const x of dl) if (x.date) byDate[x.date] = x;
+    const byDay = {};
+    for (const it of items) byDay[it.day] = it;
 
     const filled = ["", "", "", "", "", "", ""];
     let matches = 0;
     for (let i = 0; i < 7; i++) {
-      const d = addDaysISO(start, i);
-      if (byDate[d]) {
-        filled[i] = combineLunch(byDate[d]);
-        matches++;
-      }
-    }
-    // Fallback: file had no usable dates → fill in order (Mon..Sun).
-    if (matches === 0 && dl.every((x) => !x.date)) {
-      for (let i = 0; i < 7 && i < dl.length; i++) {
-        filled[i] = combineLunch(dl[i]);
+      const dnum = dayOfMonth(addDaysISO(start, i));
+      if (byDay[dnum]) {
+        filled[i] = combineLunch(byDay[dnum]);
         matches++;
       }
     }
 
+    if (matches === 0) {
+      // Nothing for this week's day-numbers (leave inputs untouched).
+      $("lunchLoadedInfo").textContent = tf("lunchNoneForWeek", { d: start });
+      return;
+    }
     suggestState.lunches = filled;
     renderLunchInputs();
-    $("lunchLoadedInfo").textContent =
-      matches > 0 ? tf("lunchFilled", { n: matches, d: start }) : tf("lunchLoaded", { n: dl.length });
+    $("lunchLoadedInfo").textContent = tf("lunchFilled", { n: matches, d: start });
   }
 
   async function requestSuggestion(mode, btn) {
@@ -452,7 +451,9 @@
     $("btnGenerateWeek").addEventListener("click", (e) => requestSuggestion("week", e.target));
     $("btnExtractLunches").addEventListener("click", (e) => extractLunchesFile(e.target));
     $("suggestDate").addEventListener("change", () => {
-      if (suggestState.datedLunches.length) fillLunchesFromDate();
+      // Re-map the already-extracted lunches onto the newly selected week
+      // (deterministic; no re-extraction needed).
+      if (suggestState.lunchItems.length) fillLunchesFromDate();
     });
     $("btnExtract").addEventListener("click", (e) => extractFile(e.target));
     $("btnStartBlank").addEventListener("click", startBlank);

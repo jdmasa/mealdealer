@@ -36,9 +36,10 @@
       lunchUpload: "Puja el menú de dinars (PDF mensual o setmanal)",
       extractLunchesBtn: "Carregar dinars",
       lunchUploadHint:
-        "S'extreuen només els dinars (s'ignoren els sopars). Tria la setmana i s'ompliran els dinars corresponents.",
+        "Puja el menú (mensual o setmanal); després tria la setmana objectiu i s'ompliran els dinars corresponents (s'ignoren els sopars).",
       lunchLoaded: "S'han carregat {n} dinars amb data. Selecciona la setmana objectiu per omplir-los.",
       lunchFilled: "{n} dinars omplerts per a la setmana del {d}.",
+      lunchNoneForWeek: "El fitxer no conté dinars per a la setmana del {d}. Tria una altra setmana o torna a carregar.",
       lunchesLabel: "Dinars de la setmana (opcional)",
       constraintsLabel: "Restriccions o preferències",
       constraintsPlaceholder:
@@ -90,9 +91,10 @@
       lunchUpload: "Sube el menú de comidas (PDF mensual o semanal)",
       extractLunchesBtn: "Cargar comidas",
       lunchUploadHint:
-        "Se extraen solo las comidas (se ignoran las cenas). Elige la semana y se rellenarán las comidas correspondientes.",
+        "Sube el menú (mensual o semanal); luego elige la semana objetivo y se rellenarán las comidas correspondientes (se ignoran las cenas).",
       lunchLoaded: "Se han cargado {n} comidas con fecha. Selecciona la semana objetivo para rellenarlas.",
       lunchFilled: "{n} comidas rellenadas para la semana del {d}.",
+      lunchNoneForWeek: "El archivo no contiene comidas para la semana del {d}. Elige otra semana o vuelve a cargar.",
       lunchesLabel: "Comidas de la semana (opcional)",
       constraintsLabel: "Restricciones o preferencias",
       constraintsPlaceholder:

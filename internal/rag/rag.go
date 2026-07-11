@@ -41,13 +41,13 @@ func New(st *store.Store, client *llm.Client, seasonWeight float64, defaultLang 
 // re-saved with a working endpoint.
 func (e *Engine) SaveMenu(ctx context.Context, w menu.Week) (int64, error) {
 	w.Normalize()
-	emb := store.Embeddings{Model: "embedding"}
+	emb := store.Embeddings{Model: e.llm.EmbeddingID()}
 	for i := range w.Days {
 		lunch := w.Days[i].LunchText()
 		if strings.TrimSpace(lunch) == "" {
 			continue
 		}
-		vec, err := e.llm.Embed(ctx, lunch)
+		vec, err := e.llm.EmbedDocument(ctx, lunch)
 		if err != nil {
 			log.Printf("warning: embedding day %d lunch failed, saving without vector: %v", i, err)
 			continue
@@ -55,7 +55,7 @@ func (e *Engine) SaveMenu(ctx context.Context, w menu.Week) (int64, error) {
 		emb.Days[i] = vec
 	}
 	if canonical := w.CanonicalText(); canonical != "" {
-		if vec, err := e.llm.Embed(ctx, canonical); err != nil {
+		if vec, err := e.llm.EmbedDocument(ctx, canonical); err != nil {
 			log.Printf("warning: embedding week failed, saving without vector: %v", err)
 		} else {
 			emb.Week = vec
@@ -69,6 +69,39 @@ func (e *Engine) SaveMenu(ctx context.Context, w menu.Week) (int64, error) {
 	}
 	log.Printf("rag: indexed menu — %d day lunch vectors, week vector=%t", embedded, len(emb.Week) > 0)
 	return e.store.SaveMenu(w, emb)
+}
+
+// ReindexStale re-embeds every menu whose stored vectors were produced by a
+// different embedding provider/model than the current one (or that has no
+// vectors at all). This makes switching profiles (e.g. local Ollama ↔ Hugging
+// Face) safe: after a restart, all stored menus are re-indexed in the current
+// provider's vector space. Errors on individual menus are logged and skipped.
+func (e *Engine) ReindexStale(ctx context.Context) {
+	id := e.llm.EmbeddingID()
+	ids, err := e.store.MenusNeedingReindex(id)
+	if err != nil {
+		log.Printf("reindex: could not list stale menus: %v", err)
+		return
+	}
+	if len(ids) == 0 {
+		log.Printf("reindex: all menus already indexed for %s", id)
+		return
+	}
+	log.Printf("reindex: migrating %d menu(s) to embedding space %s…", len(ids), id)
+	ok := 0
+	for _, menuID := range ids {
+		w, err := e.store.GetMenu(menuID)
+		if err != nil {
+			log.Printf("reindex: menu %d: %v", menuID, err)
+			continue
+		}
+		if _, err := e.SaveMenu(ctx, w); err != nil {
+			log.Printf("reindex: menu %d: %v", menuID, err)
+			continue
+		}
+		ok++
+	}
+	log.Printf("reindex: done — %d/%d menu(s) migrated", ok, len(ids))
 }
 
 // SuggestRequest is the input for both suggestion modes.
@@ -99,11 +132,11 @@ func (e *Engine) suggestDinners(ctx context.Context, req SuggestRequest, month i
 		if lunch == "" {
 			continue
 		}
-		qv, err := e.llm.Embed(ctx, lunch)
+		qv, err := e.llm.EmbedQuery(ctx, lunch)
 		if err != nil {
 			return menu.Week{}, fmt.Errorf("embed query lunch: %w", err)
 		}
-		hits, err := e.store.RankDayPairs(qv, month, e.seasonWeight, perLunchK)
+		hits, err := e.store.RankDayPairs(qv, e.llm.EmbeddingID(), month, e.seasonWeight, perLunchK)
 		if err != nil {
 			return menu.Week{}, err
 		}
@@ -133,11 +166,11 @@ func (e *Engine) suggestWeek(ctx context.Context, req SuggestRequest, month int,
 	if query == "" {
 		query = "typical weekly family menu"
 	}
-	qv, err := e.llm.Embed(ctx, query)
+	qv, err := e.llm.EmbedQuery(ctx, query)
 	if err != nil {
 		return menu.Week{}, fmt.Errorf("embed query: %w", err)
 	}
-	hits, err := e.store.RankWeeks(qv, month, e.seasonWeight, weekK)
+	hits, err := e.store.RankWeeks(qv, e.llm.EmbeddingID(), month, e.seasonWeight, weekK)
 	if err != nil {
 		return menu.Week{}, err
 	}

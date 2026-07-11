@@ -226,6 +226,30 @@ func (s *Store) DeleteMenu(id int64) error {
 	return tx.Commit()
 }
 
+// MenusNeedingReindex returns IDs of menus that have no week vector produced by
+// embedModel — i.e. menus saved under a different embedding provider/model (or
+// with embeddings unavailable). They should be re-embedded to participate in
+// retrieval under the current provider.
+func (s *Store) MenusNeedingReindex(embedModel string) ([]int64, error) {
+	rows, err := s.db.Query(
+		`SELECT id FROM menus WHERE id NOT IN (SELECT menu_id FROM week_vectors WHERE model = ?)`,
+		embedModel,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // scanner abstracts *sql.Row and *sql.Rows.
 type scanner interface {
 	Scan(dest ...any) error
@@ -254,9 +278,10 @@ func scanMenu(sc scanner) (menu.Week, error) {
 
 // RankDayPairs returns the top-K historical lunch->dinner pairs ranked by a
 // season-aware score combining cosine similarity of the lunch with proximity of
-// the target month.
-func (s *Store) RankDayPairs(query []float32, targetMonth int, seasonWeight float64, topK int) ([]DayPairHit, error) {
-	rows, err := s.db.Query(`SELECT month, lunch_text, dinner_text, lunch_embedding FROM day_pairs`)
+// the target month. Only vectors produced by embedModel are considered — cosine
+// across different embedding spaces is meaningless.
+func (s *Store) RankDayPairs(query []float32, embedModel string, targetMonth int, seasonWeight float64, topK int) ([]DayPairHit, error) {
+	rows, err := s.db.Query(`SELECT month, lunch_text, dinner_text, lunch_embedding FROM day_pairs WHERE model = ?`, embedModel)
 	if err != nil {
 		return nil, err
 	}
@@ -283,11 +308,12 @@ func (s *Store) RankDayPairs(query []float32, targetMonth int, seasonWeight floa
 	return trimDayPairs(hits, topK), nil
 }
 
-// RankWeeks returns the top-K historical weeks ranked by the season-aware score.
-func (s *Store) RankWeeks(query []float32, targetMonth int, seasonWeight float64, topK int) ([]WeekHit, error) {
+// RankWeeks returns the top-K historical weeks ranked by the season-aware score,
+// considering only vectors produced by embedModel.
+func (s *Store) RankWeeks(query []float32, embedModel string, targetMonth int, seasonWeight float64, topK int) ([]WeekHit, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.title, m.week_start, m.source, m.data_json, m.created_at, wv.month, wv.embedding
-		 FROM week_vectors wv JOIN menus m ON m.id = wv.menu_id`,
+		 FROM week_vectors wv JOIN menus m ON m.id = wv.menu_id WHERE wv.model = ?`, embedModel,
 	)
 	if err != nil {
 		return nil, err
