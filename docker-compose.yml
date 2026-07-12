@@ -1,7 +1,12 @@
+# Deployment definition. Self-sufficient: runs the image published to GHCR by
+# the GitHub Action — no source checkout or build tooling needed. On a server,
+# copy this file (plus your .env) and run `docker compose up -d`.
+#
+# For local development, docker-compose.override.yml (auto-merged when present)
+# switches the service to build from source.
 services:
   app:
-    build: .
-    image: menudealer
+    image: ghcr.io/jdmasa/mealdealer:latest
     ports:
       - "8080:8080"
     env_file: .env
@@ -12,4 +17,6 @@ services:
       - ./menudata:/data
     restart: unless-stopped
     extra_hosts:
+      # Lets the container reach services on the host (e.g. Ollama) via
+      # host.docker.internal, on Linux too.
       - "host.docker.internal:host-gateway"

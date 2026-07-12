@@ -1,0 +1,11 @@
+# Local development override — auto-merged by Docker Compose when present.
+# Builds the image from source instead of pulling from GHCR:
+#   docker compose up --build
+# Do NOT copy this file to deployments; there, docker-compose.yml alone pulls
+# the published image.
+services:
+  app:
+    build: .
+    # Tag local builds distinctly so they don't shadow the GHCR image.
+    image: mealdealer-dev
+    pull_policy: never

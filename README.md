@@ -82,9 +82,19 @@ go run ./cmd/server
 
 ## Run with Docker
 
+Local development (both compose files present — the override builds from source):
+
 ```bash
 docker compose up --build
-# open http://localhost:8080  (data persists in the `menudata` volume)
+# open http://localhost:8080  (data persists in ./menudata)
+```
+
+Deployment (image published to GHCR by the GitHub Action): copy **only**
+`docker-compose.yml` and your `.env` to the server — no source or build tools
+needed:
+
+```bash
+docker compose pull && docker compose up -d
 ```
 
 ## How it works
